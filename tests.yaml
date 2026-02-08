@@ -1,0 +1,379 @@
+meta:
+  class: BankAccount
+  tolerance: 0.001
+  exceptions:
+    invalid_argument: IllegalArgumentException
+    insufficient_funds: InsufficientFundsException
+
+tests:
+
+  constructor:
+    - name: "valid email + positive balance (middle)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { new: true }
+      assert: { email: "a@b.com", balance: 200.0 }
+
+    - name: "zero initial balance allowed (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 0.0 }
+      act: { new: true }
+      assert: { balance: 0.0 }
+
+    - name: "two-decimal initial balance allowed"
+      arrange: { email: "user@example.com", initialBalance: 500.50 }
+      act: { new: true }
+      assert: { balance: 500.50 }
+
+    - name: "empty email rejected"
+      arrange: { email: "", initialBalance: 100.0 }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: "null email rejected"
+      arrange: { email: null, initialBalance: 100.0 }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: "missing @ rejected"
+      arrange: { email: "abcdef.mail.com", initialBalance: 100.0 }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: "negative initial balance rejected"
+      arrange: { email: "a@b.com", initialBalance: -1.0 }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: ">2 decimals initial balance rejected"
+      arrange: { email: "a@b.com", initialBalance: 10.999 }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: "NaN initial balance rejected"
+      arrange: { email: "a@b.com", initialBalance: NaN }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+    - name: "Infinity initial balance rejected"
+      arrange: { email: "a@b.com", initialBalance: Infinity }
+      act: { new: true }
+      assert: { throws: IllegalArgumentException }
+
+
+  getBalance:
+    - name: "returns initial balance"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "getBalance()" }
+      assert: { equals: 200.0 }
+
+    - name: "returns zero balance (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 0.0 }
+      act: { call: "getBalance()" }
+      assert: { equals: 0.0 }
+
+    - name: "updates after successful withdraw"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "withdraw(25.0)"
+        - call: "getBalance()"
+      assert: { equals: 175.0 }
+
+    - name: "unchanged after insufficient-funds withdraw"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "withdraw(1000.0)"
+          expect: { throws: InsufficientFundsException }
+        - call: "getBalance()"
+      assert: { equals: 200.0 }
+
+    - name: "updates after deposit"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "deposit(50.0)"
+        - call: "getBalance()"
+      assert: { equals: 250.0 }
+
+    - name: "unchanged after invalid deposit"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "deposit(10.999)"
+          expect: { throws: IllegalArgumentException }
+        - call: "getBalance()"
+      assert: { equals: 200.0 }
+
+    - name: "handles 0.01 withdraw"
+      arrange: { email: "a@b.com", initialBalance: 100.0 }
+      act:
+        - call: "withdraw(0.01)"
+        - call: "getBalance()"
+      assert: { equals: 99.99 }
+
+    - name: "handles multiple transactions"
+      arrange: { email: "a@b.com", initialBalance: 1000.0 }
+      act:
+        - call: "deposit(100.0)"
+        - call: "withdraw(50.0)"
+        - call: "deposit(25.0)"
+        - call: "getBalance()"
+      assert: { equals: 1075.0 }
+
+    - name: "reflects transfer out"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act:
+        - call: "from.transfer(to, 100.0)"
+        - call: "from.getBalance()"
+      assert: { equals: 100.0 }
+
+    - name: "reflects transfer in"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act:
+        - call: "from.transfer(to, 100.0)"
+        - call: "to.getBalance()"
+      assert: { equals: 150.0 }
+
+
+  getEmail:
+    - name: "returns exact email"
+      arrange: { email: "a@b.com", initialBalance: 0.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "a@b.com" }
+
+    - name: "preserves capitalization"
+      arrange: { email: "User@Example.com", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "User@Example.com" }
+
+    - name: "supports plus sign"
+      arrange: { email: "user+tag@example.com", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "user+tag@example.com" }
+
+    - name: "supports dots in local part"
+      arrange: { email: "user.name@example.com", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "user.name@example.com" }
+
+    - name: "supports hyphen in local part"
+      arrange: { email: "a-b@mail.com", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "a-b@mail.com" }
+
+    - name: "unchanged after deposit"
+      arrange: { email: "a@b.com", initialBalance: 10.0 }
+      act:
+        - call: "deposit(1.0)"
+        - call: "getEmail()"
+      assert: { equals: "a@b.com" }
+
+    - name: "unchanged after withdraw"
+      arrange: { email: "a@b.com", initialBalance: 10.0 }
+      act:
+        - call: "withdraw(1.0)"
+        - call: "getEmail()"
+      assert: { equals: "a@b.com" }
+
+    - name: "unchanged after transfer"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 10.0 }
+        to: { email: "c@d.com", initialBalance: 0.0 }
+      act:
+        - call: "from.transfer(to, 1.0)"
+        - call: "from.getEmail()"
+      assert: { equals: "a@b.com" }
+
+    - name: "returns underscore email exactly"
+      arrange: { email: "abc_def@mail.com", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "abc_def@mail.com" }
+
+    - name: "returns complex email exactly"
+      arrange: { email: "test.user+dev@sub.example.org", initialBalance: 10.0 }
+      act: { call: "getEmail()" }
+      assert: { equals: "test.user+dev@sub.example.org" }
+
+
+  withdraw:
+    - name: "valid middle withdraw"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(100.0)" }
+      assert: { balance: 100.0 }
+
+    - name: "withdraw equals balance (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(200.0)" }
+      assert: { balance: 0.0 }
+
+    - name: "insufficient funds throws (just over boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(200.01)" }
+      assert:
+        throws: InsufficientFundsException
+        balance_unchanged: 200.0
+
+    - name: "negative withdraw throws (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(-0.01)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: "zero withdraw throws (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(0.0)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: ">2 decimals withdraw throws"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "withdraw(10.999)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: "two-decimal small withdraw works"
+      arrange: { email: "a@b.com", initialBalance: 100.0 }
+      act: { call: "withdraw(0.01)" }
+      assert: { balance: 99.99 }
+
+    - name: "multiple withdrawals accumulate"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "withdraw(25.0)"
+        - call: "withdraw(50.0)"
+      assert: { balance: 125.0 }
+
+    - name: "failed withdraw does not change balance"
+      arrange: { email: "a@b.com", initialBalance: 50.0 }
+      act:
+        - call: "withdraw(100.0)"
+          expect: { throws: InsufficientFundsException }
+        - call: "getBalance()"
+      assert: { equals: 50.0 }
+
+    - name: "withdraw from zero balance throws insufficient funds"
+      arrange: { email: "a@b.com", initialBalance: 0.0 }
+      act: { call: "withdraw(0.01)" }
+      assert:
+        throws: InsufficientFundsException
+        balance_unchanged: 0.0
+
+
+  deposit:
+    - name: "valid middle deposit"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(50.0)" }
+      assert: { balance: 250.0 }
+
+    - name: "two-decimal deposit (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(0.01)" }
+      assert: { balance: 200.01 }
+
+    - name: "one-decimal deposit"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(0.1)" }
+      assert: { balance: 200.1 }
+
+    - name: "zero deposit throws"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(0.0)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: "negative deposit throws (boundary)"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(-0.01)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: ">2 decimals deposit throws"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(10.999)" }
+      assert:
+        throws: IllegalArgumentException
+        balance_unchanged: 200.0
+
+    - name: "multiple deposits accumulate"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "deposit(25.5)"
+        - call: "deposit(10.99)"
+      assert: { balance: 236.49 }
+
+    - name: "large deposit"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "deposit(999999999.99)" }
+      assert: { balance: 1000000199.99 }
+
+    - name: "deposit into zero-balance account"
+      arrange: { email: "a@b.com", initialBalance: 0.0 }
+      act: { call: "deposit(1.0)" }
+      assert: { balance: 1.0 }
+
+    - name: "invalid deposit leaves balance unchanged"
+      arrange: { email: "a@b.com", initialBalance: 200.0 }
+      act:
+        - call: "deposit(10.999)"
+          expect: { throws: IllegalArgumentException }
+        - call: "getBalance()"
+      assert: { equals: 200.0 }
+
+
+  transfer:
+    - name: "valid middle transfer"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act: { call: "from.transfer(to, 100.0)" }
+      assert:
+        from_balance: 100.0
+        to_balance: 150.0
+
+    - name: "two-decimal small transfer (boundary)"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act: { call: "from.transfer(to, 0.01)" }
+      assert:
+        from_balance: 199.99
+        to_balance: 50.01
+
+    - name: "transfer equals balance (boundary)"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act: { call: "from.transfer(to, 200.0)" }
+      assert:
+        from_balance: 0.0
+        to_balance: 250.0
+
+    - name: "null target throws"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: null
+      act: { call: "from.transfer(to, 10.0)" }
+      assert:
+        throws: IllegalArgumentException
+        from_balance_unchanged: 200.0
+
+    - name: "transfer to self throws"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+      act: { call: "from.transfer(from, 10.0)" }
+      assert:
+        throws: IllegalArgumentException
+        from_balance_unchanged: 200.0
+
+    - name: "zero amount throws"
+      arrange:
+        from: { email: "a@b.com", initialBalance: 200.0 }
+        to: { email: "c@d.com", initialBalance: 50.0 }
+      act: { call: "from.transfer(to, 0.0)" }
+      assert:
+        throws: IllegalArgumentException
