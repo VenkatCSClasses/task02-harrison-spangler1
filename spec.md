@@ -1,138 +1,172 @@
-# spec.md — BankAccount
+## Overview
 
-## Purpose
-The BankAccount represents a single bank account with:
-- an email used as the account identifier
-- a balance representing money
+BankAccount models a single bank account with an email identifier and a monetary balance.  
+The specification defines behavior only. No implementation details are prescribed.
 
-## Money rules used everywhere
-Whenever this spec refers to a valid amount, it means:
-- the value is numeric and finite
-- the value is greater than zero
-- the value has no more than two digits after the decimal point
+## Design Principles
 
-Examples:
-- valid values: 1, 12.3, 99.99, 0.01
-- invalid values: 0, -1, 25.999, NaN, Infinity
+1. Deterministic behavior
+Given the same inputs and state, all operations produce the same results.
 
-One special case:
-- the constructor is allowed to start with an initial balance of 0.00
+2. Explicit validation 
+Invalid inputs are rejected consistently and do not modify account state.
 
-### 1. Constructor
-BankAccount email: String, initialBalance: Number
+3. Two-decimal money model 
+Monetary values are limited to at most two decimal places.
 
-Creates a new account and stores the email and starting balance.
+4. Atomic state updates
+Operations that modify multiple accounts either complete fully or have no effect.
 
-What it must do:
-- Store the email exactly as provided
-- Initialize the balance using the given starting value
+## Data Model
 
-Validation:
-- The email must pass isEmailValid
-- The initial balance must either be exactly zero or be a valid amount under the money rules
+A BankAccount contains:
+- an email identifier
+- a numeric balance
 
-Errors:
-- Throw IllegalArgumentException if:
-  - the email is invalid, null, or empty
-  - the initial balance is negative
-  - the initial balance has more than two decimal places
-  - the initial balance is NaN or Infinity
+The email is immutable after construction.  
+The balance may change only through deposit, withdraw, and transfer.
 
-### 2. getBalance
+## Money Rules
+
+A value is considered a valid amount if all of the following are true:
+- it is numeric
+- it is finite
+- it is greater than zero
+- it has no more than two digits after the decimal point
+
+Zero is not a valid amount for deposit, withdraw, or transfer.
+
+The constructor permits an initial balance of zero as a special case.
+
+### BankAccount(email, initialBalance)
+
+Creates a new BankAccount instance.
+
+Validation rules
+- The email must satisfy isEmailValid.
+- The initial balance must be zero or a valid amount.
+- The initial balance must not have more than two decimal places.
+- The initial balance must not be NaN or infinite.
+
+Error behavior
+- Throws IllegalArgumentException if any validation rule is violated.
+
+Postconditions
+- The stored email equals the input email.
+- The stored balance equals the initial balance.
+
+## getBalance
+
 Returns the current balance.
 
-### 3. getEmail
-Returns the email associated with the account. The returned value must be exactly the same string that was passed to the constructor.
+Behavior
+- Does not modify account state.
 
-### 4. withdraw
-withdraw amount: Number
+## getEmail
 
-Attempts to remove money from the account.
+Returns the email associated with the account.
 
-Validation:
-- The amount must be a valid amount under the money rules
+Behavior
+- Returns the exact string provided to the constructor.
+- Does not modify account state.
 
-If successful:
-- Decrease the balance by the given amount
+### withdraw(amount)
 
-If it fails:
-- Throw IllegalArgumentException if the amount is invalid, zero, NaN, Infinity, or has more than two decimal places
-- Throw InsufficientFundsException if the amount is greater than the current balance
-- The balance must remain unchanged if an exception is thrown
+Removes funds from the account.
 
-### 5. deposit
-deposit amount: Number
+Validation rules
+- The amount must be a valid amount.
+- The amount must not exceed the current balance.
 
-Adds money to the account.
+Behavior
+- On success, decreases the balance by the given amount.
 
-Validation:
-- The amount must be a valid amount under the money rules
+Error behavior
+- Throws IllegalArgumentException if the amount is invalid.
+- Throws InsufficientFundsException if the amount exceeds the balance.
+- On error, the balance remains unchanged.
 
-If successful:
-- Increase the balance by the given amount
+### deposit(amount)
 
-If it fails:
-- Throw IllegalArgumentException if the amount is invalid, zero, NaN, Infinity, or has more than two decimal places
-- The balance must remain unchanged if an exception is thrown
+Adds funds to the account.
 
-### 6. transfer
-transfer toAccount: BankAccount, amount: Number
+Validation rules
+- The amount must be a valid amount.
 
-Moves money from this account to another account.
+Behavior
+- On success, increases the balance by the given amount.
 
-Validation:
-- The target account must not be null
-- The target account must not be the same object as the source account
-- The amount must be a valid amount under the money rules
-- The source account must have sufficient funds
+Error behavior
+- Throws IllegalArgumentException if the amount is invalid.
+- On error, the balance remains unchanged.
 
-If successful:
-- Subtract the amount from the source account
-- Add the amount to the target account
+### transfer(toAccount, amount)
 
-If it fails:
-- Throw IllegalArgumentException if:
-  - the target account is null
-  - the target account is the same as the source account
-  - the amount is invalid, zero, NaN, Infinity, or has more than two decimal places
-- Throw InsufficientFundsException if the amount is greater than the source balance
+Moves funds from this account to another account.
 
-Atomicity:
-- Transfers must be all or nothing
-- If the transfer fails, neither account balance may change
+Validation rules
+- The target account must not be null.
+- The target account must not be the same object as the source account.
+- The amount must be a valid amount.
+- The source account must have sufficient funds.
 
-### 7. isEmailValid
-isEmailValid email: String returns boolean
+Behavior
+- On success, decreases the source balance and increases the target balance by the same amount.
 
-This is a simple email validator designed to match the Task01 tests, not a full internet email specification.
+Error behavior
+- Throws IllegalArgumentException if the target account is null.
+- Throws IllegalArgumentException if the target account is the same as the source.
+- Throws IllegalArgumentException if the amount is invalid.
+- Throws InsufficientFundsException if the amount exceeds the source balance.
+- On error, neither account balance is modified.
 
-Minimum rules:
-- the email must not be null or empty
-- the email must contain exactly one at symbol
-- there must be at least one character before the at symbol
-- there must be a domain after the at symbol
-- the domain must contain at least one dot
-- the final domain extension must be at least two characters long
-- reject patterns identified in the tests:
-  - the local part cannot start with a dot
-  - the local part cannot end with a dash
-  - consecutive dots are not allowed
-  - domain labels cannot start or end with a dash
-  - illegal characters such as hash symbols are not allowed in the domain
+### isEmailValid(email) → boolean
 
-### 8. isAmountValid
-isAmountValid amount: Number returns boolean
+Determines whether an email string is valid according to assignment rules.
 
-Returns true only if:
-- the amount is numeric and finite
-- the amount is greater than zero
-- the amount has no more than two decimal places
+Validation rules
+An email is valid if all of the following are true:
+- it is not null
+- it is not empty
+- it contains exactly one at symbol
+- it contains at least one character before the at symbol
+- it contains a domain after the at symbol
+- the domain contains at least one dot
+- the final domain extension is at least two characters long
+- the local part does not start with a dot
+- the local part does not end with a dash
+- the email does not contain consecutive dots
+- domain labels do not start or end with a dash
+- the domain does not contain illegal characters such as hash symbols
 
-Returns false otherwise.
+Behavior
+- Returns true if all rules are satisfied.
+- Returns false otherwise.
 
-Note:
-- isAmountValid returns false for zero
-- the constructor separately allows a starting balance of zero
+### isAmountValid(amount) → boolean
 
-## Decimal handling note
-Any value with more than two decimal places must be treated as invalid input and must result in an IllegalArgumentException when used in the constructor, deposit, withdraw, or transfer.
+Determines whether a numeric value is a valid monetary amount.
+
+Validation rules
+An amount is valid if all of the following are true:
+- it is numeric
+- it is finite
+- it is greater than zero
+- it has no more than two decimal places
+
+Behavior
+- Returns true if all rules are satisfied.
+- Returns false otherwise.
+
+## Decimal Handling
+
+Any value with more than two decimal places is treated as invalid input.
+
+This rule applies to:
+- constructor initial balances
+- deposit amounts
+- withdraw amounts
+- transfer amounts
+
+Invalid decimal precision results in IllegalArgumentException where applicable.
+
